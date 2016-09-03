@@ -16,7 +16,7 @@ $ rebar3 ct
 
 ## TODO
 
-* Support UUID type 1
-* Support UUID type 3
-* Support UUID type 5
+* Support UUID version 1
+* Support UUID version 3
+* Support UUID version 5
 * Document with examples

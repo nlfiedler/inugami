@@ -31,6 +31,9 @@ all() ->
 
 test_uuid4_gen(_Config) ->
     Actual = inugami:encode(inugami:uuid4()),
+    % Be explicit about our expectations rather than letting byte_size/1
+    % raise a badarg error and make me confused.
+    ?assert(is_bitstring(Actual)),
     ?assertEqual(36, byte_size(Actual)),
     ok.
 
@@ -51,7 +54,7 @@ test_decode(_Config) ->
     ?assertEqual(NilUuid, inugami:decode(<<"00000000-0000-0000-0000-000000000000">>)),
 
     % Malformed inputs
-    ?assertError(function_clause, inugami:decode("foo-bar-not-a-uuid")),
+    ?assertError(badarg, inugami:decode("foo-bar-not-a-uuid")),
     ?assertError(badarg, inugami:decode("ZZa7b810-9dZZ-11d1-80MM-00c0OOd430c8")),
     ok.
 
@@ -65,7 +68,7 @@ test_encode(_Config) ->
     ?assertEqual(<<"00000000-0000-0000-0000-000000000000">>, inugami:encode(NilInput)),
 
     % Malformed inputs
-    ?assertError(function_clause, inugami:encode("not-a-uuid")),
+    ?assertError(badarg, inugami:encode("not-a-uuid")),
     ok.
 
 test_urn(_Config) ->
@@ -75,7 +78,7 @@ test_urn(_Config) ->
     NilInput = inugami:uuid(<<"00000000">>, <<"0000">>, <<"0000">>, <<"00">>, <<"00">>, <<"000000000000">>),
     ?assertEqual("urn:uuid:00000000-0000-0000-0000-000000000000", inugami:urn(NilInput)),
 
-    ?assertError(function_clause, inugami:urn("not-a-uuid")),
+    ?assertError(badarg, inugami:urn("not-a-uuid")),
     ok.
 
 test_version(_Config) ->
@@ -99,6 +102,7 @@ test_version(_Config) ->
 
 test_variant(_Config) ->
     ?assertEqual(variant_rfc4122, inugami:get_variant(inugami:uuid4())),
+    ?assertError(badarg, inugami:get_variant("not-a-uuid")),
     ok.
 
 test_namespace_dns(_Config) ->

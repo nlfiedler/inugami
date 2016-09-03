@@ -67,7 +67,9 @@ decode(<<TimeLow:64/bitstring,  "-",
           time_high=bitstring_to_bin(TimeHigh),
           clock_high=bitstring_to_bin(ClockHigh),
           clock_low=bitstring_to_bin(ClockLow),
-          node=bitstring_to_bin(Node)}.
+          node=bitstring_to_bin(Node)};
+decode(_NotAUuid) ->
+    error(badarg).
 
 % Encodes a given #uuid{} record into a binary string.
 encode(#uuid{time_low=TimeLow, time_mid=TimeMid, time_high=TimeHigh,
@@ -78,7 +80,9 @@ encode(#uuid{time_low=TimeLow, time_mid=TimeMid, time_high=TimeHigh,
     CH = bin_to_bitstring(ClockHigh),
     CL = bin_to_bitstring(ClockLow),
     N = bin_to_bitstring(Node),
-    <<TL/binary, "-", TM/binary, "-", TH/binary, "-", CH/binary, CL/binary, "-", N/binary>>.
+    <<TL/binary, "-", TM/binary, "-", TH/binary, "-", CH/binary, CL/binary, "-", N/binary>>;
+encode(_NotAUuid) ->
+    error(badarg).
 
 % Encodes a given #uuid{} record into a string, with the URN prefix.
 urn(Input) ->

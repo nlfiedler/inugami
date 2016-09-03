@@ -1,0 +1,11 @@
+{application, inugami, [
+    {description, "A library for generating and decoding UUIDs."},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib
+    ]},
+    {env,[]},
+    {modules, []}
+]}.

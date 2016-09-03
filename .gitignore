@@ -1,0 +1,12 @@
+.rebar3
+_*
+.eunit
+*.o
+*.beam
+*.plt
+*.swp
+*.swo
+.erlang.cookie
+erl_crash.dump
+_build
+rebar.lock

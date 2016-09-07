@@ -7,7 +7,7 @@
 
 -module(inugami).
 
--export([uuid/6, uuid4/0]).
+-export([nil/0, uuid/6, uuid1/0, uuid3/2, uuid4/0, uuid5/2]).
 -export([decode/1, encode/1, urn/1]).
 -export([get_version/1, set_version/2]).
 -export([get_variant/1, set_variant/1]).
@@ -16,16 +16,21 @@
 
 -include("inugami.hrl").
 
+% The difference in 100-nanosecond intervals between the UUID epoch
+% (15 October 1582) and the Unix epoch (1 January 1970).
+-define(NANOSECOND_INTERVALS_OFFSET, 122192928000000000).
+
 namespace_dns() -> decode(<<"6ba7b810-9dad-11d1-80b4-00c04fd430c8">>).
 namespace_url() -> decode(<<"6ba7b811-9dad-11d1-80b4-00c04fd430c8">>).
 namespace_oid() -> decode(<<"6ba7b812-9dad-11d1-80b4-00c04fd430c8">>).
 namespace_x500() -> decode(<<"6ba7b814-9dad-11d1-80b4-00c04fd430c8">>).
 
-% Construct a UUID from the given bitstring parts.
+% Construct a UUID from the given parts, either bitstrings or integers.
 %
 % e.g. inugami:uuid(<<"6ba7b810">>, <<"9dad">>, <<"11d1">>,
 %                   <<"80">>, <<"b4">>, <<"00c04fd430c8">>).
-uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node) ->
+% e.g. inugami:uuid(3485462737, 37749, 13957, 86, 140, 80051933916695).
+uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node) when is_bitstring(TimeLow) ->
     #uuid{
         time_low = inugami:bitstring_to_bin(TimeLow),
         time_mid = inugami:bitstring_to_bin(TimeMid),
@@ -33,19 +38,109 @@ uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node) ->
         clock_high = inugami:bitstring_to_bin(ClockHigh),
         clock_low = inugami:bitstring_to_bin(ClockLow),
         node = inugami:bitstring_to_bin(Node)
+    };
+uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node) when is_integer(TimeLow) ->
+    EncodeAndZeroPad = fun(Integer, Length) ->
+        Subject = binary:encode_unsigned(Integer),
+        Padding = binary:copy(<<0>>, Length - byte_size(Subject)),
+        list_to_binary([Padding, Subject])
+    end,
+    #uuid{
+        time_low = EncodeAndZeroPad(TimeLow, 4),
+        time_mid = EncodeAndZeroPad(TimeMid, 2),
+        time_high = EncodeAndZeroPad(TimeHigh, 2),
+        clock_high = EncodeAndZeroPad(ClockHigh, 1),
+        clock_low = EncodeAndZeroPad(ClockLow, 1),
+        node = EncodeAndZeroPad(Node, 6)
     }.
 
-% Generate a type 4 (random) universally unique identifier.
+% Construct the nil UUID as described in section 4.1.7 of RFC 4122.
+nil() -> uuid(0, 0, 0, 0, 0, 0).
+
+% Generate a version 1 (time-based) universally unique identifier, as
+% described in section 4.2.2 of RFC 4122.
+uuid1() ->
+    <<TimeHigh:12, TimeMid:16, TimeLow:32>> = timestamp(),
+    % No real clock sequence, just a random number, per section 4.1.5 of
+    % RFC 4122.
+    <<ClockHigh:6, ClockLow:8, _R/bits>> = crypto:strong_rand_bytes(2),
+    % Make everything an integer so uuid/6 has an easy time.
+    Node = binary:decode_unsigned(get_node()),
+    Uuid = uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node),
+    set_variant(set_version(Uuid, 1)).
+
+% Return a 60-bit timestamp value suitable for version 1 UUID. Uses the
+% current system time and converts to the number of 100-nanosecond
+% intervals since the UUID epoch (15 October 1582).
+timestamp() ->
+    % Convert the Unix epoch microseconds to nanoseconds (1 MS = 1000 NS)
+    % and divide that by 100 to get the number of 100-second intervals
+    % since the UUID epoch. Or just multiply by 10 because math.
+    {MegaSeconds, Seconds, MicroSeconds} = os:timestamp(),
+    UnixEpochNanos = MegaSeconds * 1000000000000 + Seconds * 1000000 + MicroSeconds,
+    Timestamp = ?NANOSECOND_INTERVALS_OFFSET + UnixEpochNanos * 10,
+    <<Timestamp:60>>.
+
+% Find the network hardware address given the set of available interfaces.
+% Avoid the loopback interface as its address is fixed. If no suitable
+% address can be found, generate one with the multicast bit set to avoid
+% conflict with addresses obtained from network cards. See section 4.1.6 of
+% RFC 4122.
+get_node() ->
+    {ok, Interfaces} = inet:getifaddrs(),
+    find_hwaddr(Interfaces).
+
+% Find a suitable network address, generating a random value if necessary.
+find_hwaddr([{"lo", _IfConfig}|Rest]) ->
+    find_hwaddr(Rest);
+find_hwaddr([{_IfName, IfConfig}|Rest]) ->
+    case lists:keyfind(hwaddr, 1, IfConfig) of
+        {hwaddr, HwAddr} -> list_to_binary(HwAddr);
+        false -> find_hwaddr(Rest)
+    end;
+find_hwaddr(_) ->
+    <<NodeHigh:7, _:1, NodeLow:40>> = crypto:strong_rand_bytes(6),
+    <<NodeHigh:7, 1:1, NodeLow:40>>.
+
+% Generate a version 3 (named-based MD5-hashed) universally unique
+% identifier, as described in section 4.3 of RFC 4122.
+uuid3(#uuid{}=Namespace, Name) when is_list(Name); is_binary(Name) ->
+    Digest = crypto:hash(md5, list_to_binary([
+        Namespace#uuid.time_low,
+        Namespace#uuid.time_mid,
+        Namespace#uuid.time_high,
+        Namespace#uuid.clock_high,
+        Namespace#uuid.clock_low,
+        Namespace#uuid.node,
+        Name
+    ])),
+    <<TimeLow:32, TimeMid:16, TimeHigh:16, ClockHigh:8, ClockLow:8, Node:48>> = Digest,
+    Uuid = uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node),
+    set_variant(set_version(Uuid, 3)).
+
+% Generate a version 4 (random) universally unique identifier, as described
+% in section 4.4 of RFC 4122.
 uuid4() ->
     Rand = crypto:strong_rand_bytes(16),
     <<TimeLow:32, TimeMid:16, TimeHigh:16, ClockHigh:8, ClockLow:8, Node:48>> = Rand,
-    Uuid = #uuid{time_low=binary:encode_unsigned(TimeLow),
-                 time_mid=binary:encode_unsigned(TimeMid),
-                 time_high=binary:encode_unsigned(TimeHigh),
-                 clock_high=binary:encode_unsigned(ClockHigh),
-                 clock_low=binary:encode_unsigned(ClockLow),
-                 node=binary:encode_unsigned(Node)},
+    Uuid = uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node),
     set_variant(set_version(Uuid, 4)).
+
+% Generate a version 5 (named-based SHA1-hashed) universally unique
+% identifier, as described in section 4.3 of RFC 4122.
+uuid5(#uuid{}=Namespace, Name) when is_list(Name); is_binary(Name) ->
+    Digest = crypto:hash(sha, list_to_binary([
+        Namespace#uuid.time_low,
+        Namespace#uuid.time_mid,
+        Namespace#uuid.time_high,
+        Namespace#uuid.clock_high,
+        Namespace#uuid.clock_low,
+        Namespace#uuid.node,
+        Name
+    ])),
+    <<TimeLow:32, TimeMid:16, TimeHigh:16, ClockHigh:8, ClockLow:8, Node:48, _:32>> = Digest,
+    Uuid = uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node),
+    set_variant(set_version(Uuid, 5)).
 
 % Decodes a string or binary representation of a UUID into a #uuid{} record.
 decode("urn:uuid:" ++ Input) ->
@@ -62,12 +157,7 @@ decode(<<TimeLow:64/bitstring,  "-",
          ClockHigh:16/bitstring,
          ClockLow:16/bitstring, "-",
          Node:96/bitstring>>) ->
-    #uuid{time_low=bitstring_to_bin(TimeLow),
-          time_mid=bitstring_to_bin(TimeMid),
-          time_high=bitstring_to_bin(TimeHigh),
-          clock_high=bitstring_to_bin(ClockHigh),
-          clock_low=bitstring_to_bin(ClockLow),
-          node=bitstring_to_bin(Node)};
+    uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node);
 decode(_NotAUuid) ->
     error(badarg).
 
@@ -96,10 +186,8 @@ get_version(#uuid{time_high=TimeHigh}) ->
 
 % Set the version of the given UUID, returning the new record.
 set_version(#uuid{time_high=TimeHigh}=Uuid, Version) when is_binary(TimeHigh) ->
-    TH = fun (<<_V:4/bits, R/bits>>) ->
-        <<Version:4, R/bits>>
-    end(TimeHigh),
-    Uuid#uuid{time_high=TH}.
+    <<_V:4/bits, R/bits>> = TimeHigh,
+    Uuid#uuid{time_high = <<Version:4, R/bits>>}.
 
 % Extract the variant of the given UUID, returning an atom, such as
 % variant_rfc4122, which is the default for every UUID generated by this
@@ -117,10 +205,8 @@ get_variant(_Uuid) ->
 
 % Sets the variant bits as described in RFC 4122.
 set_variant(#uuid{clock_high=ClockHigh}=Uuid) when is_binary(ClockHigh) ->
-    CH = fun (<<_V:2/bits, R/bits>>) ->
-        <<2:2, R/bits>>
-    end(ClockHigh),
-    Uuid#uuid{clock_high=CH}.
+    <<_V:2/bits, R/bits>> = ClockHigh,
+    Uuid#uuid{clock_high = <<2:2, R/bits>>}.
 
 % Convert a bitstring representation of a hexadecimal string (e.g.
 % <<"80943206">>) to a proper binary (e.g. <<128,148,50,6>>).

@@ -16,7 +16,5 @@ $ rebar3 ct
 
 ## TODO
 
-* Support UUID version 1
-* Support UUID version 3
-* Support UUID version 5
+* Add richer tests for UUID version 1
 * Document with examples

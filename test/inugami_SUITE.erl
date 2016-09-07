@@ -15,7 +15,11 @@
 
 all() ->
     [
+        test_uuid_gen,
+        test_uuid1_gen,
+        test_uuid3_gen,
         test_uuid4_gen,
+        test_uuid5_gen,
         test_decode,
         test_encode,
         test_urn,
@@ -29,12 +33,102 @@ all() ->
         test_bitstring_to_bin
     ].
 
+test_uuid_gen(_Config) ->
+    Expected = <<"00000000-0000-0000-0000-000000000000">>,
+    ?assertEqual(Expected, inugami:encode(inugami:uuid(0, 0, 0, 0, 0, 0))),
+    ?assertEqual(Expected, inugami:encode(inugami:uuid(
+        <<"00000000">>, <<"0000">>, <<"0000">>, <<"00">>, <<"00">>, <<"000000000000">>))),
+    ok.
+
+test_uuid1_gen(_Config) ->
+    Actual = inugami:encode(inugami:uuid1()),
+    % Be explicit about our expectations rather than letting byte_size/1
+    % raise a badarg error and make me confused.
+    ?assert(is_bitstring(Actual)),
+    ?assertEqual(36, byte_size(Actual)),
+    ?assertEqual(1, inugami:get_version(inugami:uuid1())),
+
+    % TODO: generate a uuid, then extract parts and compare to expectations
+    %     - MAC address
+    %     - time stamp
+    %     - version
+    % TODO: how to check that uuid has valid timestamp
+    %     - get time1
+    %     - generate uuid
+    %     - get time2
+    %     - extract time for uuid
+    %     - verify extracted time is between time1 and time2
+
+    % Generate a bunch of uuid1 values and ensure uniqueness. Also tried
+    % 100,000 without any problem, but it takes noticeably longer for the
+    % test to finish.
+    InputValues = [inugami:uuid1() || _ <- lists:seq(1, 10000)],
+    UniqueValues = lists:usort(InputValues),
+    ?assertEqual(length(InputValues), length(UniqueValues)),
+    ok.
+
+test_uuid3_gen(_Config) ->
+    ?assertEqual(<<"9073926b-929f-31c2-abc9-fad77ae3e8eb">>,
+                 inugami:encode(inugami:uuid3(inugami:namespace_dns(), "example.com"))),
+    ?assertEqual(<<"9073926b-929f-31c2-abc9-fad77ae3e8eb">>,
+                 inugami:encode(inugami:uuid3(inugami:namespace_dns(), <<"example.com">>))),
+    ?assertEqual(<<"66402c62-d8b5-3acc-828d-1791e7f2862d">>,
+                 inugami:encode(inugami:uuid3(inugami:namespace_url(), "http://www.example.com/path"))),
+    ?assertEqual(<<"8f9c88e1-3faa-3b09-93ed-0cba78ee6dae">>,
+                 inugami:encode(inugami:uuid3(inugami:namespace_oid(), "1.3.6.1.4.1.1973"))),
+    ?assertEqual(<<"bdb3be56-9952-3e2c-a745-2bd15f9680c7">>,
+                 inugami:encode(inugami:uuid3(inugami:namespace_x500(), "cn=Joe User, o=Example, c=US"))),
+    ?assertEqual(3, inugami:get_version(inugami:uuid3(inugami:namespace_dns(), "example.com"))),
+
+    % Special "nil" UUID
+    ?assertEqual(<<"5205aa98-add7-3479-85a2-12aa09b46a70">>,
+                 inugami:encode(inugami:uuid3(inugami:nil(), "foo bar baz quux"))),
+
+    % Malformed inputs
+    ?assertError(function_clause, inugami:uuid3("foo-bar-not-a-uuid", "whatever")),
+    ?assertError(function_clause, inugami:uuid3(<<"foo-bar-not-a-uuid">>, "whatever")),
+    ?assertError(function_clause, inugami:uuid3(123456, "whatever")),
+    ?assertError(function_clause, inugami:uuid3(inugami:nil(), 123456)),
+    ok.
+
 test_uuid4_gen(_Config) ->
     Actual = inugami:encode(inugami:uuid4()),
     % Be explicit about our expectations rather than letting byte_size/1
     % raise a badarg error and make me confused.
     ?assert(is_bitstring(Actual)),
     ?assertEqual(36, byte_size(Actual)),
+    ?assertEqual(4, inugami:get_version(inugami:uuid4())),
+
+    % Generate a bunch of uuid4 values and ensure uniqueness. Also tried
+    % 1,000,000 without any problem, but it takes noticeably longer for the
+    % test to finish.
+    InputValues = [inugami:uuid4() || _ <- lists:seq(1, 100000)],
+    UniqueValues = lists:usort(InputValues),
+    ?assertEqual(length(InputValues), length(UniqueValues)),
+    ok.
+
+test_uuid5_gen(_Config) ->
+    ?assertEqual(<<"cfbff0d1-9375-5685-968c-48ce8b15ae17">>,
+                 inugami:encode(inugami:uuid5(inugami:namespace_dns(), "example.com"))),
+    ?assertEqual(<<"cfbff0d1-9375-5685-968c-48ce8b15ae17">>,
+                 inugami:encode(inugami:uuid5(inugami:namespace_dns(), <<"example.com">>))),
+    ?assertEqual(<<"45dbc6a2-a77d-5587-85c4-8663314bc20f">>,
+                 inugami:encode(inugami:uuid5(inugami:namespace_url(), "http://www.example.com/path"))),
+    ?assertEqual(<<"8f808e20-d3c6-5da5-85de-ed03829ae3c8">>,
+                 inugami:encode(inugami:uuid5(inugami:namespace_oid(), "1.3.6.1.4.1.1973"))),
+    ?assertEqual(<<"120689c6-401d-5a39-915c-15462164d3fc">>,
+                 inugami:encode(inugami:uuid5(inugami:namespace_x500(), "cn=Joe User, o=Example, c=US"))),
+    ?assertEqual(5, inugami:get_version(inugami:uuid5(inugami:namespace_dns(), "example.com"))),
+
+    % Special "nil" UUID
+    ?assertEqual(<<"f82da04c-2517-594f-9fc3-170c63914537">>,
+                 inugami:encode(inugami:uuid5(inugami:nil(), "foo bar baz quux"))),
+
+    % Malformed inputs
+    ?assertError(function_clause, inugami:uuid5("foo-bar-not-a-uuid", "whatever")),
+    ?assertError(function_clause, inugami:uuid5(<<"foo-bar-not-a-uuid">>, "whatever")),
+    ?assertError(function_clause, inugami:uuid5(123456, "whatever")),
+    ?assertError(function_clause, inugami:uuid5(inugami:nil(), 123456)),
     ok.
 
 test_decode(_Config) ->
@@ -50,8 +144,7 @@ test_decode(_Config) ->
     ?assertEqual(Expected, inugami:decode(<<"6BA7B810-9DAD-11D1-80B4-00C04FD430C8">>)),
 
     % Special "nil" UUID
-    NilUuid = inugami:uuid(<<"00000000">>, <<"0000">>, <<"0000">>, <<"00">>, <<"00">>, <<"000000000000">>),
-    ?assertEqual(NilUuid, inugami:decode(<<"00000000-0000-0000-0000-000000000000">>)),
+    ?assertEqual(inugami:nil(), inugami:decode(<<"00000000-0000-0000-0000-000000000000">>)),
 
     % Malformed inputs
     ?assertError(badarg, inugami:decode("foo-bar-not-a-uuid")),
@@ -64,8 +157,7 @@ test_encode(_Config) ->
     ?assertEqual(<<"6ba7b810-9dad-11d1-80b4-00c04fd430c8">>, inugami:encode(Input)),
 
     % Special "nil" UUID
-    NilInput = inugami:uuid(<<"00000000">>, <<"0000">>, <<"0000">>, <<"00">>, <<"00">>, <<"000000000000">>),
-    ?assertEqual(<<"00000000-0000-0000-0000-000000000000">>, inugami:encode(NilInput)),
+    ?assertEqual(<<"00000000-0000-0000-0000-000000000000">>, inugami:encode(inugami:nil())),
 
     % Malformed inputs
     ?assertError(badarg, inugami:encode("not-a-uuid")),
@@ -75,9 +167,10 @@ test_urn(_Config) ->
     Input = inugami:uuid(<<"6ba7b810">>, <<"9dad">>, <<"11d1">>, <<"80">>, <<"b4">>, <<"00c04fd430c8">>),
     ?assertEqual("urn:uuid:6ba7b810-9dad-11d1-80b4-00c04fd430c8", inugami:urn(Input)),
 
-    NilInput = inugami:uuid(<<"00000000">>, <<"0000">>, <<"0000">>, <<"00">>, <<"00">>, <<"000000000000">>),
-    ?assertEqual("urn:uuid:00000000-0000-0000-0000-000000000000", inugami:urn(NilInput)),
+    % Special "nil" UUID
+    ?assertEqual("urn:uuid:00000000-0000-0000-0000-000000000000", inugami:urn(inugami:nil())),
 
+    % Malformed inputs
     ?assertError(badarg, inugami:urn("not-a-uuid")),
     ok.
 
@@ -124,17 +217,6 @@ test_namespace_x500(_Config) ->
     Expected = inugami:uuid(<<"6ba7b814">>, <<"9dad">>, <<"11d1">>, <<"80">>, <<"b4">>, <<"00c04fd430c8">>),
     ?assertEqual(Expected, inugami:namespace_x500()),
     ok.
-
-% TODO: generate a uuid, then extract parts and compare to expectations
-%     - MAC address
-%     - time stamp
-%     - version
-% TODO: how to check that uuid has valid timestamp
-%     - get time1
-%     - generate uuid
-%     - get time2
-%     - extract time for uuid
-%     - verify extracted time is between time1 and time2
 
 test_bin_to_bitstring(_Config) ->
     ?assertEqual(<<"80943206">>, inugami:bin_to_bitstring(<<128,148,50,6>>)),

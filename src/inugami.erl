@@ -11,6 +11,7 @@
 -export([decode/1, encode/1, urn/1]).
 -export([get_version/1, set_version/2]).
 -export([get_variant/1, set_variant/1]).
+-export([get_node/1, get_timestamp/1]).
 -export([namespace_dns/0, namespace_url/0, namespace_oid/0, namespace_x500/0]).
 -export([bitstring_to_bin/1, bin_to_bitstring/1]).
 
@@ -73,13 +74,38 @@ uuid1() ->
 % current system time and converts to the number of 100-nanosecond
 % intervals since the UUID epoch (15 October 1582).
 timestamp() ->
-    % Convert the Unix epoch microseconds to nanoseconds (1 MS = 1000 NS)
+    % Convert the Unix epoch microseconds to nanoseconds (1 us = 1000 ns)
     % and divide that by 100 to get the number of 100-second intervals
     % since the UUID epoch. Or just multiply by 10 because math.
     {MegaSeconds, Seconds, MicroSeconds} = os:timestamp(),
-    UnixEpochNanos = MegaSeconds * 1000000000000 + Seconds * 1000000 + MicroSeconds,
-    Timestamp = ?NANOSECOND_INTERVALS_OFFSET + UnixEpochNanos * 10,
-    <<Timestamp:60>>.
+    UnixEpochMicros = MegaSeconds * 1000000000000 + Seconds * 1000000 + MicroSeconds,
+    UuidEpochNanos = ?NANOSECOND_INTERVALS_OFFSET + UnixEpochMicros * 10,
+    % drops the 4 highest bits (where the UUID version goes)
+    <<UuidEpochNanos:60>>.
+
+% Extract the time from a given UUID, in the same format as erlang:now/0, namely
+% a tuple of {MegaSeconds, Seconds, MicroSeconds}.
+get_timestamp(#uuid{}=Uuid) ->
+    % clear the version bits (highest 4 bits) from the time_high field
+    <<_:4, TH:12>> = Uuid#uuid.time_high,
+    TimeHigh = <<0:4, TH:12>>,
+    % reconstruct the original timestamp binary
+    Tbin = list_to_binary([TimeHigh, Uuid#uuid.time_mid, Uuid#uuid.time_low]),
+    % convert to an integer and do the math to get the time
+    Tint = binary:decode_unsigned(Tbin),
+    UnixEpochMicros = (Tint - ?NANOSECOND_INTERVALS_OFFSET) div 10,
+    MegaSeconds = UnixEpochMicros div 1000000000000,
+    MegaRemainder = UnixEpochMicros rem 1000000000000,
+    Seconds = MegaRemainder div 1000000,
+    MicroSeconds = MegaRemainder rem 1000000,
+    {MegaSeconds, Seconds, MicroSeconds}.
+
+% Extract the node address from the given (version 1) UUID. Returned as a
+% binary in colon-separated, hexadecimal format (e.g. <<"3c:07:54:7e:12:b0">>.
+get_node(#uuid{}=Uuid) ->
+    ByteList = binary_to_list(Uuid#uuid.node),
+    HexList = [lists:flatten(io_lib:format("~2.16.0b", [X])) || X <- ByteList],
+    list_to_bitstring(string:join(HexList, ":")).
 
 % Find the network hardware address given the set of available interfaces.
 % Avoid the loopback interface as its address is fixed. If no suitable

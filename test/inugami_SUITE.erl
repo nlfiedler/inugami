@@ -11,8 +11,6 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--include("inugami.hrl").
-
 all() ->
     [
         test_uuid_gen,
@@ -48,16 +46,22 @@ test_uuid1_gen(_Config) ->
     ?assertEqual(36, byte_size(Actual)),
     ?assertEqual(1, inugami:get_version(inugami:uuid1())),
 
-    % TODO: generate a uuid, then extract parts and compare to expectations
-    %     - MAC address
-    %     - time stamp
-    %     - version
-    % TODO: how to check that uuid has valid timestamp
-    %     - get time1
-    %     - generate uuid
-    %     - get time2
-    %     - extract time for uuid
-    %     - verify extracted time is between time1 and time2
+    % Ensure timestamp of version 1 UUID is correct.
+    TimeBefore = os:timestamp(),
+    timer:sleep(100),
+    UuidTime = inugami:get_timestamp(inugami:uuid1()),
+    timer:sleep(100),
+    TimeAfter = os:timestamp(),
+    ?assert(TimeBefore < UuidTime),
+    ?assert(UuidTime < TimeAfter),
+
+    % Ensure node of version 1 UUID is correct.
+    {ok, Interfaces} = inet:getifaddrs(),
+    HwAddr = find_hwaddr(Interfaces),
+    ByteList = binary_to_list(HwAddr),
+    HexList = [lists:flatten(io_lib:format("~2.16.0b", [X])) || X <- ByteList],
+    Expected = list_to_bitstring(string:join(HexList, ":")),
+    ?assertEqual(Expected, inugami:get_node(inugami:uuid1())),
 
     % Generate a bunch of uuid1 values and ensure uniqueness. Also tried
     % 100,000 without any problem, but it takes noticeably longer for the
@@ -68,6 +72,7 @@ test_uuid1_gen(_Config) ->
     ok.
 
 test_uuid3_gen(_Config) ->
+    % Expected values produced using Python uuid module.
     ?assertEqual(<<"9073926b-929f-31c2-abc9-fad77ae3e8eb">>,
                  inugami:encode(inugami:uuid3(inugami:namespace_dns(), "example.com"))),
     ?assertEqual(<<"9073926b-929f-31c2-abc9-fad77ae3e8eb">>,
@@ -108,6 +113,7 @@ test_uuid4_gen(_Config) ->
     ok.
 
 test_uuid5_gen(_Config) ->
+    % Expected values produced using Python uuid module.
     ?assertEqual(<<"cfbff0d1-9375-5685-968c-48ce8b15ae17">>,
                  inugami:encode(inugami:uuid5(inugami:namespace_dns(), "example.com"))),
     ?assertEqual(<<"cfbff0d1-9375-5685-968c-48ce8b15ae17">>,
@@ -147,8 +153,12 @@ test_decode(_Config) ->
     ?assertEqual(inugami:nil(), inugami:decode(<<"00000000-0000-0000-0000-000000000000">>)),
 
     % Malformed inputs
-    ?assertError(badarg, inugami:decode("foo-bar-not-a-uuid")),
-    ?assertError(badarg, inugami:decode("ZZa7b810-9dZZ-11d1-80MM-00c0OOd430c8")),
+    ?assertError(badarg, inugami:decode(<<"foo-bar-not-a-uuid">>)),
+    ?assertError(badarg, inugami:decode(<<"ZZa7b810-9dZZ-11d1-80MM-00c0OOd430c8">>)),
+    ?assertError(badarg, inugami:decode(<<"6ba7b810-9dad-11d1-80b4-00c04fd430">>)),
+    ?assertError(badarg, inugami:decode(<<"6ba7b810-9dad-11d1-80b4-00c04fd430c89a">>)),
+    ?assertError(badarg, inugami:decode(<<"6ba7b81-09dad-11d180b400-c04fd430c8">>)),
+    ?assertError(badarg, inugami:decode(<<"6ba7b810+9dad+11d1+80b4+00c04fd430c8">>)),
     ok.
 
 test_encode(_Config) ->
@@ -183,7 +193,6 @@ test_version(_Config) ->
     % UUIDs generated using python3...
     %
     Uuid1 = inugami:decode("80943206-7160-11e6-8b6f-3c07547e18a6"),
-    ct:log(default, 50, "UUID1 TimeHigh: ~w", [Uuid1#uuid.time_high]),
     ?assertEqual(1, inugami:get_version(Uuid1)),
     Uuid3 = inugami:decode("9073926b-929f-31c2-abc9-fad77ae3e8eb"),
     ?assertEqual(3, inugami:get_version(Uuid3)),
@@ -194,7 +203,16 @@ test_version(_Config) ->
     ok.
 
 test_variant(_Config) ->
+    % The default variant for this library is RFC 4122
     ?assertEqual(variant_rfc4122, inugami:get_variant(inugami:uuid4())),
+
+    % Normal cases
+    ?assertEqual(variant_ncs, inugami:get_variant(inugami:decode(<<"00000000-0000-0000-0000-000000000000">>))),
+    ?assertEqual(variant_rfc4122, inugami:get_variant(inugami:decode(<<"00000000-0000-0000-8000-000000000000">>))),
+    ?assertEqual(variant_microsoft, inugami:get_variant(inugami:decode(<<"00000000-0000-0000-c000-000000000000">>))),
+    ?assertEqual(variant_future, inugami:get_variant(inugami:decode(<<"00000000-0000-0000-e000-000000000000">>))),
+
+    % Invalid inputs
     ?assertError(badarg, inugami:get_variant("not-a-uuid")),
     ok.
 
@@ -235,3 +253,17 @@ test_bitstring_to_bin(_Config) ->
     % test round trip
     ?assertEqual(<<"11d1">>, inugami:bin_to_bitstring(inugami:bitstring_to_bin(<<"11d1">>))),
     ok.
+
+% Find a suitable network address, generating a random value if necessary.
+% Duplicate code from the module under test, but this is ostensibly an
+% internal function, so double-check our work by doing it twice?
+find_hwaddr([{"lo", _IfConfig}|Rest]) ->
+    find_hwaddr(Rest);
+find_hwaddr([{_IfName, IfConfig}|Rest]) ->
+    case lists:keyfind(hwaddr, 1, IfConfig) of
+        {hwaddr, HwAddr} -> list_to_binary(HwAddr);
+        false -> find_hwaddr(Rest)
+    end;
+find_hwaddr(_) ->
+    <<NodeHigh:7, _:1, NodeLow:40>> = crypto:strong_rand_bytes(6),
+    <<NodeHigh:7, 1:1, NodeLow:40>>.

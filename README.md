@@ -1,6 +1,6 @@
 # inugami
 
-An Erlang/OTP library for generating universally unique identifiers (UUID), as defined in [RFC 4122](https://tools.ietf.org/html/rfc4122). At the moment, only version 4 is generated.
+An Erlang/OTP library for generating universally unique identifiers (UUID), as defined in [RFC 4122](https://tools.ietf.org/html/rfc4122). That includes versions 1, 3, 4, and 5 of the specification.
 
 ## Requirements
 
@@ -16,5 +16,5 @@ $ rebar3 ct
 
 ## TODO
 
-* Add richer tests for UUID version 1
 * Document with examples
+* Commit and tag as 1.0.0

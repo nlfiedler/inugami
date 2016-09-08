@@ -18,3 +18,7 @@ $ rebar3 ct
 
 * Document with examples
 * Commit and tag as 1.0.0
+
+## License
+
+[BSD 3-Clause](https://opensource.org/licenses/BSD-3-Clause), see the `LICENSE` file.

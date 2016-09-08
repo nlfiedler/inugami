@@ -21,6 +21,7 @@ all() ->
         test_decode,
         test_encode,
         test_urn,
+        test_to_string,
         test_version,
         test_variant,
         test_namespace_dns,
@@ -182,6 +183,14 @@ test_urn(_Config) ->
 
     % Malformed inputs
     ?assertError(badarg, inugami:urn("not-a-uuid")),
+    ok.
+
+test_to_string(_Config) ->
+    Input = inugami:uuid(<<"6ba7b810">>, <<"9dad">>, <<"11d1">>, <<"80">>, <<"b4">>, <<"00c04fd430c8">>),
+    ?assertEqual("6ba7b810-9dad-11d1-80b4-00c04fd430c8", inugami:to_string(Input)),
+    ?assertEqual("6ba7b810-9dad-11d1-80b4-00c04fd430c8", inugami:to_string(dashed, Input)),
+    ?assertEqual("6ba7b8109dad11d180b400c04fd430c8", inugami:to_string(compact, Input)),
+    ?assertEqual("6ba7b810+9dad+11d1+80b4+00c04fd430c8", inugami:to_string("+", Input)),
     ok.
 
 test_version(_Config) ->

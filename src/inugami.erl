@@ -8,7 +8,7 @@
 -module(inugami).
 
 -export([nil/0, uuid/6, uuid1/0, uuid3/2, uuid4/0, uuid5/2]).
--export([decode/1, encode/1, urn/1]).
+-export([decode/1, encode/1, urn/1, to_string/1, to_string/2]).
 -export([get_version/1, set_version/2]).
 -export([get_variant/1, set_variant/1]).
 -export([get_node/1, get_timestamp/1]).
@@ -187,7 +187,8 @@ decode(<<TimeLow:64/bitstring,  "-",
 decode(_NotAUuid) ->
     error(badarg).
 
-% Encodes a given #uuid{} record into a binary string.
+% Encodes a given #uuid{} record into a binary string with dash (<<"-">>)
+% as the separator. If string output is desired, see to_string/1.
 encode(#uuid{time_low=TimeLow, time_mid=TimeMid, time_high=TimeHigh,
              clock_high=ClockHigh, clock_low=ClockLow, node=Node}) ->
     TL = bin_to_bitstring(TimeLow),
@@ -203,6 +204,29 @@ encode(_NotAUuid) ->
 % Encodes a given #uuid{} record into a string, with the URN prefix.
 urn(Input) ->
     "urn:uuid:" ++ binary_to_list(encode(Input)).
+
+% Return a string representation of the UUID with dash ("-") as the
+% separator, as described in section 3 of RFC 4122.
+to_string(#uuid{}=Uuid) ->
+    to_string(dashed, Uuid).
+
+% Convert the UUID to a string, with the specified separator ("-" for
+% 'dashed', "" for 'compact'). Note that anything other than dash
+% separators does not conform to the UUID string format, as described in
+% section 3 of RFC 4122.
+to_string(dashed, #uuid{}=Uuid) ->
+    to_string("-", Uuid);
+to_string(compact, #uuid{}=Uuid) ->
+    to_string("", Uuid);
+to_string(Separator, #uuid{}=Uuid) ->
+    Values = [
+        bin_to_hexstr(Uuid#uuid.time_low),
+        bin_to_hexstr(Uuid#uuid.time_mid),
+        bin_to_hexstr(Uuid#uuid.time_high),
+        bin_to_hexstr(Uuid#uuid.clock_high) ++ bin_to_hexstr(Uuid#uuid.clock_low),
+        bin_to_hexstr(Uuid#uuid.node)
+    ],
+    string:join(Values, Separator).
 
 % Extract the version from the UUID as an 8-bit integer.
 get_version(#uuid{time_high=TimeHigh}) ->

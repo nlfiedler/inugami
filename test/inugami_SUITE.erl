@@ -28,14 +28,14 @@ all() ->
         test_namespace_url,
         test_namespace_oid,
         test_namespace_x500,
-        test_bin_to_bitstring,
-        test_bitstring_to_bin
+        test_bin_to_hexbin,
+        test_hexbin_to_bin
     ].
 
 test_uuid_gen(_Config) ->
     Expected = <<"00000000-0000-0000-0000-000000000000">>,
-    ?assertEqual(Expected, inugami:encode(inugami:uuid(0, 0, 0, 0, 0, 0))),
-    ?assertEqual(Expected, inugami:encode(inugami:uuid(
+    ?assertEqual(Expected, inugami:encode(inugami:new_uuid(0, 0, 0, 0, 0, 0))),
+    ?assertEqual(Expected, inugami:encode(inugami:new_uuid(
         <<"00000000">>, <<"0000">>, <<"0000">>, <<"00">>, <<"00">>, <<"000000000000">>))),
     ok.
 
@@ -43,7 +43,7 @@ test_uuid1_gen(_Config) ->
     Actual = inugami:encode(inugami:uuid1()),
     % Be explicit about our expectations rather than letting byte_size/1
     % raise a badarg error and make me confused.
-    ?assert(is_bitstring(Actual)),
+    ?assert(is_binary(Actual)),
     ?assertEqual(36, byte_size(Actual)),
     ?assertEqual(1, inugami:get_version(inugami:uuid1())),
 
@@ -61,7 +61,7 @@ test_uuid1_gen(_Config) ->
     HwAddr = find_hwaddr(Interfaces),
     ByteList = binary_to_list(HwAddr),
     HexList = [lists:flatten(io_lib:format("~2.16.0b", [X])) || X <- ByteList],
-    Expected = list_to_bitstring(string:join(HexList, ":")),
+    Expected = list_to_binary(string:join(HexList, ":")),
     ?assertEqual(Expected, inugami:get_node(inugami:uuid1())),
 
     % Generate a bunch of uuid1 values and ensure uniqueness. Also tried
@@ -101,7 +101,7 @@ test_uuid4_gen(_Config) ->
     Actual = inugami:encode(inugami:uuid4()),
     % Be explicit about our expectations rather than letting byte_size/1
     % raise a badarg error and make me confused.
-    ?assert(is_bitstring(Actual)),
+    ?assert(is_binary(Actual)),
     ?assertEqual(36, byte_size(Actual)),
     ?assertEqual(4, inugami:get_version(inugami:uuid4())),
 
@@ -140,7 +140,7 @@ test_uuid5_gen(_Config) ->
 
 test_decode(_Config) ->
     % Acceptable inputs
-    Expected = inugami:uuid(<<"6ba7b810">>, <<"9dad">>, <<"11d1">>, <<"80">>, <<"b4">>, <<"00c04fd430c8">>),
+    Expected = inugami:new_uuid(<<"6ba7b810">>, <<"9dad">>, <<"11d1">>, <<"80">>, <<"b4">>, <<"00c04fd430c8">>),
     ?assertEqual(Expected, inugami:decode("urn:uuid:6ba7b810-9dad-11d1-80b4-00c04fd430c8")),
     ?assertEqual(Expected, inugami:decode("{6ba7b810-9dad-11d1-80b4-00c04fd430c8}")),
     ?assertEqual(Expected, inugami:decode("6ba7b810-9dad-11d1-80b4-00c04fd430c8")),
@@ -164,7 +164,7 @@ test_decode(_Config) ->
 
 test_encode(_Config) ->
     % Acceptable inputs
-    Input = inugami:uuid(<<"6ba7b810">>, <<"9dad">>, <<"11d1">>, <<"80">>, <<"b4">>, <<"00c04fd430c8">>),
+    Input = inugami:new_uuid(<<"6ba7b810">>, <<"9dad">>, <<"11d1">>, <<"80">>, <<"b4">>, <<"00c04fd430c8">>),
     ?assertEqual(<<"6ba7b810-9dad-11d1-80b4-00c04fd430c8">>, inugami:encode(Input)),
 
     % Special "nil" UUID
@@ -175,7 +175,7 @@ test_encode(_Config) ->
     ok.
 
 test_urn(_Config) ->
-    Input = inugami:uuid(<<"6ba7b810">>, <<"9dad">>, <<"11d1">>, <<"80">>, <<"b4">>, <<"00c04fd430c8">>),
+    Input = inugami:new_uuid(<<"6ba7b810">>, <<"9dad">>, <<"11d1">>, <<"80">>, <<"b4">>, <<"00c04fd430c8">>),
     ?assertEqual("urn:uuid:6ba7b810-9dad-11d1-80b4-00c04fd430c8", inugami:urn(Input)),
 
     % Special "nil" UUID
@@ -186,7 +186,7 @@ test_urn(_Config) ->
     ok.
 
 test_to_string(_Config) ->
-    Input = inugami:uuid(<<"6ba7b810">>, <<"9dad">>, <<"11d1">>, <<"80">>, <<"b4">>, <<"00c04fd430c8">>),
+    Input = inugami:new_uuid(<<"6ba7b810">>, <<"9dad">>, <<"11d1">>, <<"80">>, <<"b4">>, <<"00c04fd430c8">>),
     ?assertEqual("6ba7b810-9dad-11d1-80b4-00c04fd430c8", inugami:to_string(Input)),
     ?assertEqual("6ba7b810-9dad-11d1-80b4-00c04fd430c8", inugami:to_string(dashed, Input)),
     ?assertEqual("6ba7b8109dad11d180b400c04fd430c8", inugami:to_string(compact, Input)),
@@ -229,41 +229,41 @@ test_variant(_Config) ->
     ok.
 
 test_namespace_dns(_Config) ->
-    Expected = inugami:uuid(<<"6ba7b810">>, <<"9dad">>, <<"11d1">>, <<"80">>, <<"b4">>, <<"00c04fd430c8">>),
+    Expected = inugami:new_uuid(<<"6ba7b810">>, <<"9dad">>, <<"11d1">>, <<"80">>, <<"b4">>, <<"00c04fd430c8">>),
     ?assertEqual(Expected, inugami:namespace_dns()),
     ok.
 
 test_namespace_url(_Config) ->
-    Expected = inugami:uuid(<<"6ba7b811">>, <<"9dad">>, <<"11d1">>, <<"80">>, <<"b4">>, <<"00c04fd430c8">>),
+    Expected = inugami:new_uuid(<<"6ba7b811">>, <<"9dad">>, <<"11d1">>, <<"80">>, <<"b4">>, <<"00c04fd430c8">>),
     ?assertEqual(Expected, inugami:namespace_url()),
     ok.
 
 test_namespace_oid(_Config) ->
-    Expected = inugami:uuid(<<"6ba7b812">>, <<"9dad">>, <<"11d1">>, <<"80">>, <<"b4">>, <<"00c04fd430c8">>),
+    Expected = inugami:new_uuid(<<"6ba7b812">>, <<"9dad">>, <<"11d1">>, <<"80">>, <<"b4">>, <<"00c04fd430c8">>),
     ?assertEqual(Expected, inugami:namespace_oid()),
     ok.
 
 test_namespace_x500(_Config) ->
-    Expected = inugami:uuid(<<"6ba7b814">>, <<"9dad">>, <<"11d1">>, <<"80">>, <<"b4">>, <<"00c04fd430c8">>),
+    Expected = inugami:new_uuid(<<"6ba7b814">>, <<"9dad">>, <<"11d1">>, <<"80">>, <<"b4">>, <<"00c04fd430c8">>),
     ?assertEqual(Expected, inugami:namespace_x500()),
     ok.
 
-test_bin_to_bitstring(_Config) ->
-    ?assertEqual(<<"80943206">>, inugami:bin_to_bitstring(<<128,148,50,6>>)),
-    ?assertEqual(<<"00c04fd430c8">>, inugami:bin_to_bitstring(<<0,192,79,212,48,200>>)),
-    ?assertEqual(<<"00">>, inugami:bin_to_bitstring(<<0>>)),
-    ?assertEqual(<<"11d1">>, inugami:bin_to_bitstring(<<17, 209>>)),
+test_bin_to_hexbin(_Config) ->
+    ?assertEqual(<<"80943206">>, inugami:bin_to_hexbin(<<128,148,50,6>>)),
+    ?assertEqual(<<"00c04fd430c8">>, inugami:bin_to_hexbin(<<0,192,79,212,48,200>>)),
+    ?assertEqual(<<"00">>, inugami:bin_to_hexbin(<<0>>)),
+    ?assertEqual(<<"11d1">>, inugami:bin_to_hexbin(<<17, 209>>)),
     % test round trip
-    ?assertEqual(<<17, 209>>, inugami:bitstring_to_bin(inugami:bin_to_bitstring(<<17, 209>>))),
+    ?assertEqual(<<17, 209>>, inugami:hexbin_to_bin(inugami:bin_to_hexbin(<<17, 209>>))),
     ok.
 
-test_bitstring_to_bin(_Config) ->
-    ?assertEqual(<<128,148,50,6>>, inugami:bitstring_to_bin(<<"80943206">>)),
-    ?assertEqual(<<0,192,79,212,48,200>>, inugami:bitstring_to_bin(<<"00c04fd430c8">>)),
-    ?assertEqual(<<0>>, inugami:bitstring_to_bin(<<"00">>)),
-    ?assertEqual(<<17, 209>>, inugami:bitstring_to_bin(<<"11d1">>)),
+test_hexbin_to_bin(_Config) ->
+    ?assertEqual(<<128,148,50,6>>, inugami:hexbin_to_bin(<<"80943206">>)),
+    ?assertEqual(<<0,192,79,212,48,200>>, inugami:hexbin_to_bin(<<"00c04fd430c8">>)),
+    ?assertEqual(<<0>>, inugami:hexbin_to_bin(<<"00">>)),
+    ?assertEqual(<<17, 209>>, inugami:hexbin_to_bin(<<"11d1">>)),
     % test round trip
-    ?assertEqual(<<"11d1">>, inugami:bin_to_bitstring(inugami:bitstring_to_bin(<<"11d1">>))),
+    ?assertEqual(<<"11d1">>, inugami:bin_to_hexbin(inugami:hexbin_to_bin(<<"11d1">>))),
     ok.
 
 % Find a suitable network address, generating a random value if necessary.

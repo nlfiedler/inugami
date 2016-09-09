@@ -11,10 +11,12 @@
 % @version 0.4.0
 % @doc A library for decoding and generating UUIDs.
 %
-% `inugami' is an Erlang/OTP library for decoding and generating universally unique identifiers
-% (UUID). It can be used to generate UUIDs of versions 1, 3, 4, and 5 of the RFC 4122 specification.
-% In addition to generating UUIDs, `inugami' can decode strings and bitstrings into UUIDs, and extract
-% certain values from the identifier, including the version, variant, node, and timestamp.
+% `inugami' is an Erlang/OTP library for decoding and generating universally
+% unique identifiers (UUID). It can be used to generate UUIDs of versions
+% 1, 3, 4, and 5 of the RFC 4122 specification. In addition to generating
+% UUIDs, `inugami' can decode strings and binaries into UUIDs, and extract
+% certain values from the identifier, including the version, variant, node,
+% and timestamp.
 %
 % Some example usage:
 %
@@ -41,13 +43,13 @@
 %
 -module(inugami).
 
--export([nil/0, uuid/6, uuid1/0, uuid3/2, uuid4/0, uuid5/2]).
+-export([nil/0, new_uuid/6, uuid1/0, uuid3/2, uuid4/0, uuid5/2]).
 -export([decode/1, encode/1, urn/1, to_string/1, to_string/2]).
 -export([get_version/1, set_version/2]).
 -export([get_variant/1, set_variant/1]).
 -export([get_node/1, get_timestamp/1]).
 -export([namespace_dns/0, namespace_url/0, namespace_oid/0, namespace_x500/0]).
--export([bitstring_to_bin/1, bin_to_bitstring/1]).
+-export([hexbin_to_bin/1, bin_to_hexbin/1]).
 
 % The difference in 100-nanosecond intervals between the UUID epoch
 % (15 October 1582) and the Unix epoch (1 January 1970).
@@ -112,27 +114,27 @@ namespace_x500() -> decode(<<"6ba7b814-9dad-11d1-80b4-00c04fd430c8">>).
 
 % @doc
 %
-% Construct a UUID from the given parts, either bitstrings or integers.
+% Construct a UUID from the given parts, either binaries or integers.
 %
 % @since 0.2.0
 %
--spec uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node) -> uuid()
-      when TimeLow   :: bitstring() | integer(),
-           TimeMid   :: bitstring() | integer(),
-           TimeHigh  :: bitstring() | integer(),
-           ClockHigh :: bitstring() | integer(),
-           ClockLow  :: bitstring() | integer(),
-           Node      :: bitstring() | integer().
-uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node) when is_bitstring(TimeLow) ->
+-spec new_uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node) -> uuid()
+      when TimeLow   :: binary() | integer(),
+           TimeMid   :: binary() | integer(),
+           TimeHigh  :: binary() | integer(),
+           ClockHigh :: binary() | integer(),
+           ClockLow  :: binary() | integer(),
+           Node      :: binary() | integer().
+new_uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node) when is_binary(TimeLow) ->
     #uuid{
-        time_low = inugami:bitstring_to_bin(TimeLow),
-        time_mid = inugami:bitstring_to_bin(TimeMid),
-        time_high = inugami:bitstring_to_bin(TimeHigh),
-        clock_high = inugami:bitstring_to_bin(ClockHigh),
-        clock_low = inugami:bitstring_to_bin(ClockLow),
-        node = inugami:bitstring_to_bin(Node)
+        time_low = inugami:hexbin_to_bin(TimeLow),
+        time_mid = inugami:hexbin_to_bin(TimeMid),
+        time_high = inugami:hexbin_to_bin(TimeHigh),
+        clock_high = inugami:hexbin_to_bin(ClockHigh),
+        clock_low = inugami:hexbin_to_bin(ClockLow),
+        node = inugami:hexbin_to_bin(Node)
     };
-uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node) when is_integer(TimeLow) ->
+new_uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node) when is_integer(TimeLow) ->
     EncodeAndZeroPad = fun(Integer, Length) ->
         Subject = binary:encode_unsigned(Integer),
         Padding = binary:copy(<<0>>, Length - byte_size(Subject)),
@@ -154,7 +156,7 @@ uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node) when is_integer(Time
 % @since 0.2.0
 %
 -spec nil() -> uuid().
-nil() -> uuid(0, 0, 0, 0, 0, 0).
+nil() -> new_uuid(0, 0, 0, 0, 0, 0).
 
 % @doc
 %
@@ -171,7 +173,7 @@ uuid1() ->
     <<ClockHigh:6, ClockLow:8, _R/bits>> = crypto:strong_rand_bytes(2),
     % Make everything an integer so uuid/6 has an easy time.
     Node = binary:decode_unsigned(get_node()),
-    Uuid = uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node),
+    Uuid = new_uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node),
     set_variant(set_version(Uuid, 1)).
 
 % @doc
@@ -221,11 +223,11 @@ get_timestamp(#uuid{}=Uuid) ->
 %
 % @since 0.3.0
 %
--spec get_node(uuid()) -> bitstring().
+-spec get_node(uuid()) -> binary().
 get_node(#uuid{}=Uuid) ->
     ByteList = binary_to_list(Uuid#uuid.node),
     HexList = [lists:flatten(io_lib:format("~2.16.0b", [X])) || X <- ByteList],
-    list_to_bitstring(string:join(HexList, ":")).
+    list_to_binary(string:join(HexList, ":")).
 
 % @doc
 %
@@ -273,7 +275,7 @@ uuid3(#uuid{}=Namespace, Name) when is_list(Name); is_binary(Name) ->
         Name
     ])),
     <<TimeLow:32, TimeMid:16, TimeHigh:16, ClockHigh:8, ClockLow:8, Node:48>> = Digest,
-    Uuid = uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node),
+    Uuid = new_uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node),
     set_variant(set_version(Uuid, 3)).
 
 % @doc
@@ -287,7 +289,7 @@ uuid3(#uuid{}=Namespace, Name) when is_list(Name); is_binary(Name) ->
 uuid4() ->
     Rand = crypto:strong_rand_bytes(16),
     <<TimeLow:32, TimeMid:16, TimeHigh:16, ClockHigh:8, ClockLow:8, Node:48>> = Rand,
-    Uuid = uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node),
+    Uuid = new_uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node),
     set_variant(set_version(Uuid, 4)).
 
 % @doc
@@ -309,7 +311,7 @@ uuid5(#uuid{}=Namespace, Name) when is_list(Name); is_binary(Name) ->
         Name
     ])),
     <<TimeLow:32, TimeMid:16, TimeHigh:16, ClockHigh:8, ClockLow:8, Node:48, _:32>> = Digest,
-    Uuid = uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node),
+    Uuid = new_uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node),
     set_variant(set_version(Uuid, 5)).
 
 % @doc
@@ -325,7 +327,7 @@ uuid5(#uuid{}=Namespace, Name) when is_list(Name); is_binary(Name) ->
 decode("urn:uuid:" ++ Input) ->
     decode(Input);
 decode(Input) when is_list(Input) ->
-    decode(list_to_bitstring(string:to_lower(Input)));
+    decode(list_to_binary(string:to_lower(Input)));
 decode(<<"urn:uuid:", Input/bitstring>>) ->
     decode(Input);
 decode(<<"{", Input:288/bitstring, "}">>) ->
@@ -336,7 +338,7 @@ decode(<<TimeLow:64/bitstring,  "-",
          ClockHigh:16/bitstring,
          ClockLow:16/bitstring, "-",
          Node:96/bitstring>>) ->
-    uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node);
+    new_uuid(TimeLow, TimeMid, TimeHigh, ClockHigh, ClockLow, Node);
 decode(_NotAUuid) ->
     error(badarg).
 
@@ -349,15 +351,15 @@ decode(_NotAUuid) ->
 % @see inugami:to_string/1
 % @since 0.1.0
 %
--spec encode(uuid()) -> bitstring().
+-spec encode(uuid()) -> binary().
 encode(#uuid{time_low=TimeLow, time_mid=TimeMid, time_high=TimeHigh,
              clock_high=ClockHigh, clock_low=ClockLow, node=Node}) ->
-    TL = bin_to_bitstring(TimeLow),
-    TM = bin_to_bitstring(TimeMid),
-    TH = bin_to_bitstring(TimeHigh),
-    CH = bin_to_bitstring(ClockHigh),
-    CL = bin_to_bitstring(ClockLow),
-    N = bin_to_bitstring(Node),
+    TL = bin_to_hexbin(TimeLow),
+    TM = bin_to_hexbin(TimeMid),
+    TH = bin_to_hexbin(TimeHigh),
+    CH = bin_to_hexbin(ClockHigh),
+    CL = bin_to_hexbin(ClockLow),
+    N = bin_to_hexbin(Node),
     <<TL/binary, "-", TM/binary, "-", TH/binary, "-", CH/binary, CL/binary, "-", N/binary>>.
 
 % @doc
@@ -461,13 +463,15 @@ set_variant(#uuid{clock_high=ClockHigh}=Uuid) when is_binary(ClockHigh) ->
 
 % @doc
 %
-% Convert a bitstring representation of a hexadecimal string to a binary.
+% Convert a hexadecimal in binary form to a binary consisting of the values
+% represented by the hexadecimal octets. For instance, the hexadecimal
+% &lt;&lt;"01020304"&gt;&gt; becomes the bytes &lt;&lt;1,2,3,4&gt;&gt;.
 %
 % @since 0.1.0
 %
--spec bitstring_to_bin(bitstring()) -> binary().
-bitstring_to_bin(Bits) ->
-    try hexstr_to_bin(bitstring_to_list(Bits)) of
+-spec hexbin_to_bin(binary()) -> binary().
+hexbin_to_bin(Bits) ->
+    try hexstr_to_bin(binary_to_list(Bits)) of
         Result -> Result
     catch
         % translate the error in hexstr_to_bin/2 to what we would expect
@@ -477,13 +481,15 @@ bitstring_to_bin(Bits) ->
 
 % @doc
 %
-% Convert a binary to its hexadecimal string representation.
+% Convert a binary to its hexadecimal representation in the form of a
+% binary. For example, the bytes &lt;&lt;1,2,3,4&gt;&gt; become the
+% hexadecimal &lt;&lt;"01020304"&gt;&gt;.
 %
 % @since 0.1.0
 %
--spec bin_to_bitstring(binary()) -> bitstring().
-bin_to_bitstring(Bin) ->
-    list_to_bitstring(bin_to_hexstr(Bin)).
+-spec bin_to_hexbin(binary()) -> binary().
+bin_to_hexbin(Bin) ->
+    list_to_binary(bin_to_hexstr(Bin)).
 
 %
 % The code below comes from Steve Vinoski, via a comment on this blog post:
@@ -492,7 +498,8 @@ bin_to_bitstring(Bin) ->
 
 % @doc
 %
-% Convert a binary to a hexadecimal string.
+% Convert a binary to a hexadecimal string. For example, the bytes
+% &lt;&lt;1,2,3,4&gt;&gt; become the hexadecimal "01020304".
 %
 -spec bin_to_hexstr(binary()) -> string().
 bin_to_hexstr(Bin) ->
@@ -500,7 +507,9 @@ bin_to_hexstr(Bin) ->
 
 % @doc
 %
-% Convert a hexadecimal string to a binary.
+% Convert a hexadecimal in string form to a binary consisting of the values
+% represented by the hexadecimal octets. For instance, the hexadecimal
+% "01020304" becomes the bytes &lt;&lt;1,2,3,4&gt;&gt;.
 %
 -spec hexstr_to_bin(string()) -> binary().
 hexstr_to_bin(S) ->

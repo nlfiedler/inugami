@@ -14,14 +14,38 @@ $ rebar3 compile
 $ rebar3 ct
 ```
 
-## TODO
+## Example Usage
 
-* Rename several functions and change some types
-    - probably everything `bitstring` can just be `binary`
-    - `bitstring_to_bin/1` => `hex_bitstring_to_binary/1`
-    - `bin_to_bitstring/1` => `binary_to_hex_bitstring/1`
-    - `uuid/6` => `new_uuid/6`
-* Commit and tag as 1.0.0
+Include as a dependency in your release, using rebar...
+
+```
+{deps, [
+    {inugami, {git, "https://github.com/nlfiedler/inugami", {tag, "0.4.0"}}}
+]}.
+```
+
+Generating a version 1 UUID and extracting properties from it...
+
+```
+> Uuid = inugami:uuid1().
+{uuid,<<191,7,211,198>>,
+      <<118,19>>,
+      <<17,230>>,
+      <<"£">>,<<"Ã">>,
+      <<0,62,225,194,211,88>>}
+> inugami:get_version(Uuid).
+1
+> inugami:get_variant(Uuid).
+variant_rfc4122
+> inugami:get_node(Uuid).
+<<"00:3e:e1:c2:d3:58">>
+> inugami:get_timestamp(Uuid).
+{1473,373786,279623}
+> inugami:encode(Uuid).
+<<"bf07d3c6-7613-11e6-a3c3-003ee1c2d358">>
+> inugami:to_string(compact, Uuid).
+"bf07d3c6761311e6a3c3003ee1c2d358"
+```
 
 ## License
 

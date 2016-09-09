@@ -171,7 +171,7 @@ test_encode(_Config) ->
     ?assertEqual(<<"00000000-0000-0000-0000-000000000000">>, inugami:encode(inugami:nil())),
 
     % Malformed inputs
-    ?assertError(badarg, inugami:encode("not-a-uuid")),
+    ?assertError(function_clause, inugami:encode("not-a-uuid")),
     ok.
 
 test_urn(_Config) ->
@@ -182,7 +182,7 @@ test_urn(_Config) ->
     ?assertEqual("urn:uuid:00000000-0000-0000-0000-000000000000", inugami:urn(inugami:nil())),
 
     % Malformed inputs
-    ?assertError(badarg, inugami:urn("not-a-uuid")),
+    ?assertError(function_clause, inugami:urn("not-a-uuid")),
     ok.
 
 test_to_string(_Config) ->
@@ -209,6 +209,9 @@ test_version(_Config) ->
     ?assertEqual(4, inugami:get_version(Uuid4)),
     Uuid5 = inugami:decode("cfbff0d1-9375-5685-968c-48ce8b15ae17"),
     ?assertEqual(5, inugami:get_version(Uuid5)),
+
+    % Invalid inputs
+    ?assertError(function_clause, inugami:get_version("not-a-uuid")),
     ok.
 
 test_variant(_Config) ->
@@ -222,7 +225,7 @@ test_variant(_Config) ->
     ?assertEqual(variant_future, inugami:get_variant(inugami:decode(<<"00000000-0000-0000-e000-000000000000">>))),
 
     % Invalid inputs
-    ?assertError(badarg, inugami:get_variant("not-a-uuid")),
+    ?assertError(function_clause, inugami:get_variant("not-a-uuid")),
     ok.
 
 test_namespace_dns(_Config) ->

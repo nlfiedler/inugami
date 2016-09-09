@@ -3,6 +3,10 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.0.0] - 2016-09-08
+### Changed
+- Renamed several functions and added documentation.
+
 ## [0.4.0] - 2016-09-07
 ### Changed
 - Add to_string/1 and to_string/2 functions for string formatting.

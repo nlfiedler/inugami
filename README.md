@@ -20,7 +20,7 @@ Include as a dependency in your release, using rebar...
 
 ```
 {deps, [
-    {inugami, {git, "https://github.com/nlfiedler/inugami", {tag, "0.4.0"}}}
+    {inugami, {git, "https://github.com/nlfiedler/inugami", {tag, "1.0.0"}}}
 ]}.
 ```
 

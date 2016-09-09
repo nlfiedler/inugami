@@ -1,6 +1,6 @@
 {application, inugami, [
     {description, "A library for generating and decoding UUIDs."},
-    {vsn, "0.4.0"},
+    {vsn, "1.0.0"},
     {registered, []},
     {applications, [
         kernel,

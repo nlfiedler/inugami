@@ -16,7 +16,7 @@ $ rebar3 ct
 
 ## Example Usage
 
-Include as a dependency in your release, using rebar...
+Including as a dependency in your release, using rebar...
 
 ```
 {deps, [

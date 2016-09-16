@@ -1,6 +1,6 @@
 # inugami
 
-An Erlang/OTP library for generating universally unique identifiers (UUID), as defined in [RFC 4122](https://tools.ietf.org/html/rfc4122). That includes versions 1, 3, 4, and 5 of the specification.
+An Erlang/OTP library for generating universally unique identifiers (UUID), as defined in [RFC 4122](https://tools.ietf.org/html/rfc4122). That includes versions 1, 3, 4, and 5 of the specification. Named after the [dog god](https://en.wikipedia.org/wiki/Inugami) of Japanese folklore, for no particular reason.
 
 ## Requirements
 

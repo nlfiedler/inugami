@@ -24,6 +24,8 @@ Including as a dependency in your release, using rebar...
 ]}.
 ```
 
+Be sure to include `inugami` in the `included_applications` list of your application configuration before building a release.
+
 Generating a version 1 UUID and extracting properties from it...
 
 ```
